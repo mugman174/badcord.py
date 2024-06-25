@@ -1,12 +1,10 @@
-API_BASE: str = ""  # API base endpoint
+API_BASE: str = "https://api.old.server.spacebar.chat/api"  # API base endpoint
+CDN_BASE: str = "https://cdn.old.server.spacebar.chat"
+
 TOKEN: str = ""  # Fosscord account token
 
 # The following is used for the bridge bot (will commit later probably)
 DTOKEN: str = "" # discord bot token
-webhook = {
-	"id": 0, # webhook id (the numbers)
-	"token": "" # webhook token (long part after the last slash in the url)
-}
+webhook: str = "" # webhook url
 discord_channel: int = 0 # discord channel id
 fosscord_channel: int = 0 # fosscord channel id
-
