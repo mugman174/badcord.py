@@ -2,11 +2,10 @@
 discord.py 1.7.3 monkeypatching
 """
 
-
-import config
-
 from discord import *
-import discord, json, datetime, re, sys
+import discord
+import datetime
+import sys
 from typing import *
 from discord.ext import commands
 
@@ -16,7 +15,6 @@ async def get_gateway(self, *, encoding="json", v=6, zlib=True):
         data = await self.request(discord.http.Route("GET", "/gateway"))
     except discord.HTTPException as exc:
         raise GatewayNotFound() from exc
-    data = json.loads(data)
     value = "{0}?encoding={1}&v={2}"
     return value.format(data["url"], encoding, v)
 
@@ -63,6 +61,7 @@ def guild_sync(self, data):
 
 def parse_message_create(self, data):
     data["edited_timestamp"] = data.get("edited_timestamp")
+    data["pinned"] = data.get("pinned")
     channel, _ = self._get_guild_channel(data)
     message = discord.Message(channel=channel, data=data, state=self)
     self.dispatch("message", message)
@@ -81,7 +80,7 @@ def send_message(
     embed=None,
     nonce=None,
     allowed_mentions=None,
-    message_reference=None
+    message_reference=None,
 ):
     channel_id = str(channel_id)
     r = discord.http.Route(
@@ -106,15 +105,13 @@ def send_message(
         payload["allowed_mentions"] = allowed_mentions
 
     if message_reference:
-        message_reference["guild_id"] = str(message_reference["guild_id"])
-        message_reference["channel_id"] = str(message_reference["channel_id"])
-        message_reference["guild_id"] = str(message_reference["guild_id"])
-        payload["message_reference"] = message_reference
+        payload["message_reference"] = {
+            key: str(value) for key, value in message_reference.items()
+        }
     return self.request(r, json=payload)
 
 
 def create_message(self, *, channel, data):
-    data = json.loads(data)
     return discord.Message(state=self, channel=channel, data=data)
 
 
@@ -125,12 +122,10 @@ def _Overwrites_init(self, **kwargs):
     self.type = sys.intern(str(kwargs.pop("type")))
 
 
-# def clean_prefix(self):
-# 	return "!"
 clean_prefix = "!"
 
 
-def with_state(self, data, *_, **__):  # state, data):
+def with_state(self, data, *_, **__):
     if not data:
         return
     message_id = utils._get_as_snowflake(data, "message_id")
@@ -146,22 +141,8 @@ def with_state(self, data, *_, **__):  # state, data):
 
 
 def parse_time(timestamp):
-    try:
-        if timestamp:
-            if timestamp.isnumeral():
-                timestamp = str(int(timestamp) / 1000)
-            return datetime.datetime(
-                *map(
-                    int,
-                    [
-                        i
-                        for i in re.split(r"[^\d]", timestamp.replace("+00:00", ""))
-                        if i
-                    ],
-                )
-            )
-    except Exception:
-        pass
+    if timestamp:
+        return datetime.datetime.fromisoformat(timestamp)
     return None
 
 
@@ -194,10 +175,29 @@ def _get_guild(self, guild_id):
     return self._guilds.get(guild_id)
 
 
+def Invite__init__(self, *, state, data):
+    self._state = state
+    self.max_age = data.get("max_age")
+    self.code = data.get("code")
+    self.guild = data.get("guild")
+    self.revoked = data.get("revoked")
+    self.created_at = parse_time(data.get("created_at"))
+    self.temporary = data.get("temporary")
+    self.uses = data.get("uses")
+    self.max_uses = data.get("max_uses")
+    self.approximate_presence_count = data.get("approximate_presence_count")
+    self.approximate_member_count = data.get("approximate_member_count")
+
+    inviter_data = data.get("inviter")
+    self.inviter = (
+        None if inviter_data is None else self._state.store_user(inviter_data)
+    )
+    self.channel = data.get("channel")
+
+
 discord.state.ConnectionState._get_guild = _get_guild
 discord.state.ConnectionState.parse_typing_start = parse_typing_start
 discord.utils.parse_time = parse_time
-discord.message.MessageReference.with_state = with_state
 commands.HelpCommand.clean_prefix = clean_prefix
 discord.state.ConnectionState.create_message = create_message
 discord.http.HTTPClient.send_message = send_message
@@ -206,3 +206,4 @@ discord.http.HTTPClient.get_gateway = get_gateway
 discord.utils._get_as_snowflake = _get_as_snowflake
 discord.role.RoleTags.__init__ = roleTags
 discord.abc._Overwrites.__init__ = _Overwrites_init
+discord.invite.Invite.__init__ = Invite__init__
