@@ -121,6 +121,13 @@ def _Overwrites_init(self, **kwargs):
     self.deny = int(kwargs.pop("deny_new", 0))
     self.type = sys.intern(str(kwargs.pop("type")))
 
+#def _Overwrites_init(self, **data) -> None:
+#    self.id: int = int(data['id'])
+#    self.allow: int = int(data.get('allow', 0))
+#    self.deny: int = int(data.get('deny', 0))
+#    self.type: OverwriteType = data['type']
+
+
 
 clean_prefix = "!"
 
@@ -194,6 +201,29 @@ def Invite__init__(self, *, state, data):
     )
     self.channel = data.get("channel")
 
+def edit_channel_permissions(self, channel_id, target, allow, deny, type, *, reason=None):
+    payload = {
+        'id': str(target),
+        'allow': allow,
+        'deny': deny,
+        'type': ["role","member"].index(type)
+    }
+    r = discord.http.Route('PUT', '/channels/{channel_id}/permissions/{target}', channel_id=channel_id, target=target)
+    return self.request(r, json=payload, reason=reason)
+
+def TextChannel_update(self, guild, data):
+    self.guild = guild
+    self.name = data['name']
+    self.category_id = utils._get_as_snowflake(data, 'parent_id')
+    self.topic = data.get('topic')
+    self.position = data.get('position', getattr(self, "position", None))
+    self.nsfw = data.get('nsfw', False)
+    # Does this need coercion into `int`? No idea yet.
+    self.slowmode_delay = data.get('rate_limit_per_user', 0)
+    self._type = data.get('type', self._type)
+    self.last_message_id = utils._get_as_snowflake(data, 'last_message_id')
+    self._fill_overwrites(data)
+
 
 discord.state.ConnectionState._get_guild = _get_guild
 discord.state.ConnectionState.parse_typing_start = parse_typing_start
@@ -207,3 +237,5 @@ discord.utils._get_as_snowflake = _get_as_snowflake
 discord.role.RoleTags.__init__ = roleTags
 discord.abc._Overwrites.__init__ = _Overwrites_init
 discord.invite.Invite.__init__ = Invite__init__
+discord.http.HTTPClient.edit_channel_permissions = edit_channel_permissions
+discord.channel.TextChannel._update = TextChannel_update
